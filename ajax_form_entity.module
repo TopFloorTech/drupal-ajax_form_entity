@@ -1,0 +1,621 @@
+<?php
+
+/*
+ * TODO
+
+ 
+ URGENT : 
+ -  Gestion des commentaires : lien de réponse également + revoir ajax comments
+ -  Field collection : il y a des cas où cela ne fonctionne pas (sans doute pb avec le bouton "fermé") ? 
+ -  Commiter au plus vite
+ -  Blocs pour toutes les entités possibles : à mettre dans un autre module... THOMAS : A REVOIR !
+ -  Submitted by pour les entités : test module submited by pour les noeuds. Gérer le submitted by différemment pour les entités. THOMAS
+ -  Test user
+ -  Test taxonomy
+ -  Construction des formulaires plus général.
+
+ MOINS URGENT :
+  -  masquer en js les boutons "transfer" pour les fichiers
+  -  Ne remonte pas si la même erreur est déclenchée	
+  -  S'occuper du titre également pour les pages (noeuds, commentaires...) et du submitted by
+  -  Attention aux permissions (dont field collection si champ n'est pas à unlimited.
+	-  Message qui disparaît avec un fade.
+	-  revoir condition contre ajaxification formulaire d'admin
+  -  Gestion des aperçus.	
+	-  Si javascript désactivé
+	-  Sortir provide a block dans un autre module ?
+	-  Rechargement du formulaire de commentaire pose parfois des soucis...
+ 
+BONUS : 
+ ajout de js pour les settings
+ configs dans une page à part
+ help text
+
+ formulaire de confs en ajax
+  créer des blocs pour les formulaires de noeuds
+	idée : suppression => mise en cache avec expiration + bouton "annuler" : on supprime donc, mais on peut annuler. Attention, soucis pour les commentaires, etc.
+	visualisation des commentaires : graphiquement décalés, cf. ajax comment
+ ajaxifier voir / modifier + modifier les classes css pour switcher les onglets
+ choisir les settings pour tous les bundles dans la page de config
+ faire en sorte de travailler avec trash ou un module similaire.
+ 
+   ---------------------------------------------------------------------
+ README :
+ Exemples :
+ mass creation (tags for example)
+ wall type
+ creation without page load
+ 
+ Options :
+ - Activation per entity and per bundle
+ - Show the resulting entity in the desired display (or not) above, under the forme (or replace)
+ - Control message creation
+ - Handle files uploads
+
+ Known to be compatible with core entities. Other entity may need to be added because each entity needs some arguments to be passed to the form.
+ 
+ similar modules : ajax comment
+ -----------------------------------------------------------
+ 
+*/
+
+//Must load it to ensure proper submission of node forms (multiple times). TODO : include only if at least one node form is activated.
+module_load_include('inc', 'node', 'node.pages');
+
+if (module_exists('field_collection'))
+	module_load_include('inc', 'field_collection', 'field_collection.pages');
+	
+if (module_exists('entityform'))
+	module_load_include('inc', 'entityform', 'entityform.admin');	
+
+/**
+ * Implement hook_permission().
+ */
+function ajax_form_entity_permission() {
+  return array(
+	 'access content' => array(
+			'title' => t('Administer Ajax form entity'),	 
+			'description' => t('Allow to administer settings for ajax form entity'),
+			'restrict access' => TRUE,
+		),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function ajax_form_entity_menu() {
+  $items = array();
+  $items['admin/config/ajax-form-entity'] = array(
+    'title' => 'Ajax form entity configs',
+    'page callback' => 'drupal_get_form',
+		'page arguments' => array('ajax_form_entity_form'),
+    'description' => 'Configuration of ajax form entity',
+    'access arguments' => array('administer ajax for entity'),
+    'type' => MENU_NORMAL_ITEM, 
+    'file' => 'ajax_form_entity.admin.inc',		
+  );
+  $items['ajax-form-entity-edit/%'] = array(
+    'page callback' => 'ajax_form_entity_entity_edit',
+    'access callback' => 'user_access',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['ajax-form-entity-delete/%'] = array(
+    'page callback' => 'ajax_form_entity_entity_delete',
+    'access callback' => 'user_access',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['ajax-form-entity-cancel/%'] = array(
+    'page callback' => 'ajax_form_entity_entity_cancel',
+    'access callback' => 'user_access',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+	
+
+	
+	
+  return $items;
+}
+
+
+/**
+ * Helper function to correct badly declared entities.
+ *
+ * @see ajax_form_entity_form_submit and ajax_form_entity_form
+ */
+function _ajax_form_entity_load_entities(){
+
+	//Get all entites
+	$entities = module_invoke_all('entity_info');	
+
+	//Only select fieldable entites that have bundle defined
+	foreach($entities AS $entity_name => $entity) {
+		if (isset($entity['fieldable']) && isset($entity['bundles']) && $entity['bundles'])
+		$return_entities[$entity_name] =$entity ;
+	}	
+	
+	//Correction for entityforms that do not declare its bundles
+	if ($entities['entityform_type']) {
+		$results = db_query("SELECT type, label FROM {entityform_type}"); //TODO : use entityform_get_types
+		$return_entities['entityform'] = $entities['entityform'];
+		foreach ($results AS $result)
+			$return_entities['entityform']['bundles'][$result->type]['label'] = $result->label;
+	}
+		
+	return $return_entities;
+}
+
+/**
+ * Form builder; the entity wall message add form.
+ *
+ * @ingroup forms
+ */
+function ajax_form_entity_form_alter(&$form, $form_state) {
+
+	//Check if we have an entityform (but no administration form).
+  //Do not use $form['#id'] because it may change
+	// if (isset($form['#entity_type']) && isset($form['#bundle']) && (isset ($form_state['build_info']['files']['menu']) && !strpos($form_state['build_info']['files']['menu'], 'field_ui.admin.inc'))) {
+	
+	//TODO : improve detection of admin forms.
+	if (isset($form['#entity_type']) && isset($form['#bundle']) && !(arg(0) == 'admin' && arg(1) == 'structure')) {
+		// dpm($form);
+		// dpm($form_state);
+		$settings = variable_get('ajax_form_entity_' . $form['#entity_type'] . '_' . $form['#bundle'], array());
+		if (isset($settings['activate']) && $settings['activate']) {
+			//Adds containers for messages & entity view, and form reload wrapper (as form ID in $form may be different from the HTML ID whith AJAX issues)
+			if (!isset($form['#prefix']) || !strpos($form['#prefix'], 'form-message-wrapper')) {
+				$form['#prefix'] = '<div id="form-message-wrapper-' . $form['#build_id'] . '"></div><div id="preview-wrapper-top-' . $form['#build_id'] . '"></div><div id="form-reload-' . $form['#build_id'] . '">';
+				$form['#suffix'] = '</div><div id="preview-wrapper-bottom-' . $form['#build_id'] . '"></div>';
+			}
+			
+			//Indicate if it is a creation or modification for the AJAX callback.
+			//Special case for Field collection entity	(no ID in the form)
+			$id = $settings['id'];
+			
+			//Check if it is the first form (there are some settings if it is)
+			if (!isset($form_state['build_info']['args'][0]->{$id}) || !$form_state['build_info']['args'][0]->{$id})
+				$form['new'] = array(
+					'#type' => 'value',
+					'#value' => TRUE
+				);
+
+			//Compatibility with field collection if on the field collection adding page
+			global $ajax_form_entity_field_collection;	
+			if($form['#entity_type'] == 'field_collection_item') {
+				if(arg(0) == 'field-collection') {
+					$host_entity_type = arg(3);
+					$host_entity_id = arg(4);
+				} elseif ($ajax_form_entity_field_collection['host_entity_id']) {
+					$host_entity_type = $ajax_form_entity_field_collection['host_entity_type'];
+					$host_entity_id = $ajax_form_entity_field_collection['host_entity_id'];				
+				}
+				$form['host_entity_type'] = array(
+						'#type' => 'value',
+						'#value' => $host_entity_type
+					);
+					$form['host_entity_id'] = array(
+						'#type' => 'value',
+						'#value' => $host_entity_id
+					);				
+			}
+
+			//Add ajax callback to the submit button
+			$form['actions']['submit']['#ajax'] =  array(
+				'callback' => 'ajax_form_entity_callback',
+				'effect' => 'fade',
+			);	
+			//Load js to autosubmit files (else they are not loaded)
+			drupal_add_js(drupal_get_path('module', 'ajax_form_entity') . '/ajax_form_entity.js');
+		}
+	}
+}
+
+/**
+ * AJAX submit handler for entity message add form. Returns ajax commands to update
+ * the relevant message comments.
+ * 
+ * @return ajax commands (append to messages wrapper)
+ */
+function ajax_form_entity_callback($form, $form_state) {
+// dpm($form);
+// dpm($form_state);
+// toto();
+	$commands = array();
+	//Return just error messages if there is an error
+	if ($errors = form_get_errors()) {
+		//Change classes of the forms to display them as error
+		 foreach ($errors AS $name => $message)	 
+			 $commands[] = ajax_command_invoke('#edit-' . str_replace(array('_', ']['), '-', $name), 'addClass', array('error'));
+		$commands[] = ajax_command_replace('#form-message-wrapper-' . $form['#build_id'], theme('status_messages'));
+		return array('#type' => 'ajax', '#commands' => $commands);
+	}
+	$entity_type = $form['#entity_type'];
+	$bundle = $form['#bundle'];
+	$settings = variable_get('ajax_form_entity_' . $entity_type . '_' . $bundle, NULL);
+
+	//Display result of form submission
+	if($settings['view_mode_region']) {
+		//Entity should be loaded again to handle processing certain elements (images for example)
+		$ids = array();
+		$entities = array();
+		$ids[] = $form_state[$entity_type]->{$settings['id']};	
+		$entities[] = entity_load($form['#entity_type'], $ids, $conditions = array(), FALSE);
+		$entities_view = entity_view($form['#entity_type'], $entities[0], $settings['view_mode'], NULL, TRUE);
+		$entity_show = drupal_render($entities_view);
+		//View entity	
+		if($settings['view_mode_region'] == 'top')
+			$commands[] = ajax_command_append('#preview-wrapper-top-' . $form['#build_id'], $entity_show);
+		else
+			$commands[] = ajax_command_append('#preview-wrapper-bottom-' . $form['#build_id'], $entity_show);
+	}
+	
+	//Return confirmation messages if any or empty session
+	if ($settings['message'])
+		$commands[] = ajax_command_replace('#form-message-wrapper-' . $form['#build_id'], theme('status_messages'));
+	else
+		unset($_SESSION['messages']['status']);
+
+		
+	//Case of creation : respect the settings and reload the form
+	if(isset($form['new']['#value']) && $settings['reload']) {
+
+		//Rebuilds the form
+		$new_form_build = _ajax_form_entity_build_entity_forms($entity_type, $form, $form_state);
+
+		$commands[] = ajax_command_replace('#form-reload-' . $form['#build_id'], drupal_render($new_form_build));
+	
+	} else {
+		$commands[] = ajax_command_remove('#form-reload-' . $form['#build_id']);
+	}
+	// $commands[] = ajax_command_remove('#form-reload');
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+/**
+ * Helper function to build forms arguments depending on the entity
+ * 
+ * @return array() with form arguments
+ */
+function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $form_state = array(), $entity = NULL){
+	$new_form_state  = array();
+
+	//TODO : make it more general : everything is the same except the form ID for drupal_get_form
+	switch($entity_type) {
+		//Node form
+		case 'node':
+			//Case of creation and case of edition
+			if (!$entity) {
+				global $user;
+				$entity = (object) array('uid' => $user->uid, 'name' => (isset($user->name) ? $user->name : ''), 'type' => $form['type']['#value'], 'language' => LANGUAGE_NONE);
+				$new_form_state['input'] = array();
+				$new_form_state['build_info']['args'][] = $entity;
+				return drupal_build_form($form['#form_id'], $new_form_state);
+			} else {		
+				$entity_id = key($entity);		
+				return drupal_get_form($entity[$entity_id]->type . '_node_form', $entity[$entity_id]);
+			}
+			break;
+	
+		//Comment form
+		case 'comment':
+			if (!$entity) {	
+				$entity = (object) array('nid' => $form['#node']->nid);
+				$new_form_state['input'] = array();
+				$new_form_state['build_info']['args'][] = $entity;
+				return drupal_build_form($form['#form_id'], $new_form_state);
+			} else {	
+				$entity_id = key($entity);
+			  return drupal_get_form($entity[$entity_id]->node_type . '_form', $entity[$entity_id]);	
+			}
+			break;
+			
+		case 'entityform':
+		//Case of creation and case of edition
+			if (!$entity) {
+				$entity = entityform_create($values = array());
+				$entity->type = $form_state['build_info']['args'][0]->type;
+				$new_form_state['input'] = array();
+				$new_form_state['build_info']['args'][] = $entity;	
+				return drupal_build_form($form['#form_id'], $new_form_state);			
+			} else {
+				$entity_id = key($entity);		
+				return drupal_get_form('entityform_edit_form', $entity[$entity_id]);				
+			}
+			break;
+			
+		case 'field_collection_item':	
+
+			//Create new default field collection entity
+			if ($entity == NULL) {
+				$entity = new FieldCollectionItemEntity;
+				$host_entity_type = isset($form_state['values']['host_entity_type']) ? $form_state['values']['host_entity_type'] : $form_state['build_info']['args']['host_entity_type'];
+				$host_entity_id = isset($form_state['values']['host_entity_id']) ? $form_state['values']['host_entity_id'] : $form_state['build_info']['args']['host_entity_id'];
+				$ids[] = $host_entity_id;
+				$host_entity = entity_load($host_entity_type, $ids);
+				$entity = entity_create('field_collection_item', array('field_name' => $form_state['build_info']['args'][0]->field_name));
+				$entity->setHostEntity($host_entity_type, $host_entity[$host_entity_id], LANGUAGE_NONE, FALSE);
+			} else {
+				$entity_id = key($entity);					
+				return drupal_get_form('field_collection_item_form', $entity[$entity_id]);
+			}
+			// $entity->setHostEntity();
+			//Set new form with host entity informations
+			$new_form_state['input'] = array();
+			$new_form_state['build_info']['args'][] = $entity;	
+			$new_form_state['build_info']['args']['host_entity_id'] = $host_entity_id ;
+			$new_form_state['build_info']['args']['host_entity_type'] = $host_entity_type;
+
+			return drupal_build_form($form['#form_id'], $new_form_state);
+			
+			break;
+		default:
+			break;
+	}
+	
+	return $new_form_state;
+	
+}
+
+//TO BE DELETED
+
+/**
+ * Implements hook_block_info().
+ */
+// function ajax_form_entity_block_info() {
+
+	// $entities = _ajax_form_entity_load_entities();
+
+	// foreach($entities AS $entity_name => $entity) {
+		
+		// foreach ($entity['bundles'] AS $bundle_name => $bundle){ 
+			// $settings = variable_get('ajax_form_entity_' . $entity_name . '_' . $bundle_name, array());
+			// if(isset($settings))
+				// if ($settings['block'])
+					// $blocks[$entity_name . '-' . $bundle_name] = array(
+						// 'info' => t('Add form for ') . $bundle['label'],
+						// 'cache' => DRUPAL_NO_CACHE,
+					// );
+		// }
+	// }
+
+// dpm($blocks);
+// return array();
+  // return $blocks;
+// }
+
+
+/**
+ * Implements hook_block_view().
+ */
+// function ajax_form_entity_block_view($delta = '') {
+  // $block = array();
+
+	// $explode = explode('-', $delta);
+	// $entity_type = $explode[0];
+	// $bundle = $explode[1];
+	
+  // switch ($entity_type) {
+    // case 'entityform':	
+			// $entity = entityform_create($values = array());
+			// $entity->type = 'test';
+			// $output = drupal_render(drupal_get_form('entityform_edit_form', $entity));
+      // $block['content'] = array('#markup' => $output);
+      // break;
+  // }
+  // return $block;
+// }
+
+/**
+ * Implements hook_field_extra_fields().
+ * Adds edit link and modify link
+ */
+function ajax_form_entity_field_extra_fields(){
+
+	$entities = _ajax_form_entity_load_entities();
+
+	foreach($entities AS $entity_name => $entity) {
+		
+		foreach ($entity['bundles'] AS $bundle_name => $bundle){ 
+			$settings = variable_get('ajax_form_entity_' . $entity_name . '_' . $bundle_name, array());
+			if(isset($settings)) {
+				if ($settings['edit_activate'])
+					$extra[$entity_name][$bundle_name]['display']['ajax_edit_link'] = array(
+						'label' => t('Ajax edit link'),
+						'description' =>  t('Ajax edit link'),
+						'weight' => -1,
+					);
+				if ($settings['delete_activate'])
+					$extra[$entity_name][$bundle_name]['display']['ajax_delete_link'] = array(
+						'label' => t('Ajax delete link'),
+						'description' =>  t('Ajax delete link'),
+						'weight' => -1,
+					);
+			}
+		}
+	}
+	
+	// dpm($extra);
+	
+	return $extra;
+}
+
+/**
+ * Implements hook_entity_view_alter().
+ *
+ */
+function ajax_form_entity_entity_view_alter(&$build, $type){
+
+	$bundle = $build['#bundle'];
+
+	//If activated, process with the entity
+	$settings = variable_get('ajax_form_entity_' . $type . '_' . $bundle, array());
+
+	if(isset($settings['activate']) && $settings['activate']) {
+
+		//Get the entity ID (normally wrapped into $build['#name_of_the_entity']
+		$entity_type = '#' . $type;		
+		$entity_id = $build[$entity_type]->{$settings['id']};
+		
+		//Special ID for multiple form cases
+		$special_id = uniqid();
+		drupal_add_library('system', 'drupal.ajax');
+		
+		//Special wrapper
+		$build['#prefix'] = '<div id="ajax-entity-form-' . $special_id . '">' . $build['#prefix'];
+		$build['#suffix'] .= '</div><div id="ajax-entity-form-wrapper-' . $special_id . '"></div>';
+
+		//If AJAX links are activated, add  them
+		if($settings['edit_activate']) {
+			$build['ajax_edit_link']['#markup'] = '<div id="ajax-entity-form-edit ajax-entity-form-edit-' . $special_id . '">';
+			$build['ajax_edit_link']['#markup'] .= l(t('Edit'), 'ajax-form-entity-edit/edit/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
+			$build['ajax_edit_link']['#markup'] .= '</div>';
+		}
+		if($settings['delete_activate']) {
+			$build['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete ajax-entity-form-delete-' . $special_id . '">';
+			$build['ajax_delete_link']['#markup'] .= l(t('delete'), 'ajax-form-entity-delete/delete/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
+			$build['ajax_delete_link']['#markup'] .= '</div>';		
+		}		
+	}
+}
+
+
+
+/**
+ * Implements hook_entity_view().
+ *
+ */
+ 
+ /*
+function ajax_form_entity_entity_view($entity, $type, $view_mode , $langcode){
+
+	$bundle = '';
+	//Field collection
+	switch ($type) {
+		case 'field_collection_item':
+			$bundle = $entity->field_name;
+			break;
+		case 'comment':
+			$bundle = $entity->node_type;
+			break;
+		//Works for node, entity forms	
+		default:
+			if(isset($entity->type))
+				$bundle = $entity->type;
+			break;
+	}
+	
+	//If activated, put the link
+	$settings = variable_get('ajax_form_entity_' . $type . '_' . $bundle, array());
+	// dpm($settings);
+	if(isset($settings['activate']) && $settings['activate']) {
+		
+		$entity_id = $entity->{$settings['id']};
+		//Special ID for multiple form cases
+		$special_id = uniqid();
+		drupal_add_library('system', 'drupal.ajax');
+		
+		$entity->content['#prefix'] = '<div id="ajax-entity-form-' . $special_id . '">';
+		$entity->content['#suffix'] = '</div><div id="ajax-entity-form-wrapper-' . $special_id . '"></div>';
+
+		//TODO : theme function (with entity type, entity ,etc.
+		//TODO : check permissions
+
+		if($settings['edit_activate']) {
+			$entity->content['ajax_edit_link']['#markup'] = '<div id="ajax-entity-form-edit ajax-entity-form-edit-' . $special_id . '">';
+			$entity->content['ajax_edit_link']['#markup'] .= l(t('Edit'), 'ajax-form-entity-edit/edit/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
+			$entity->content['ajax_edit_link']['#markup'] .= '</div>';
+		}
+		if($settings['delete_activate']) {
+			$entity->content['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete ajax-entity-form-delete-' . $special_id . '">';
+			$entity->content['ajax_delete_link']['#markup'] .= l(t('delete'), 'ajax-form-entity-delete/delete/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
+			$entity->content['ajax_delete_link']['#markup'] .= '</div>';		
+			// $entity->content['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete ajax-entity-form-delete-' . $special_id . '">';
+			// $entity->content['ajax_delete_link']['#markup'] = l(t('Delete'), 'ajax-form-entity-delete/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
+			// $entity->content['ajax_delete_link']['#markup'] .= '</div>';
+		}		
+	}
+}
+
+*/
+
+/**
+ * Ajax callback for edition (ajax delete link)
+ *
+ */
+function ajax_form_entity_entity_edit($type = 'ajax'){
+
+	//TODO : use hook_menu page argument
+	$entity_type = arg(3);
+	$entity_id = arg(4);
+	$special_id = arg(5);
+	
+	//Load entity
+	$ids[] = $entity_id;
+	$entity = entity_load($entity_type, $ids);
+
+	//TODO : desactivated js compatibility
+  if ($type == 'ajax') { 
+	
+		$form_state['build_info']['args'][] = $entity;
+		
+		//TODO : theming function ?
+		$form['#prefix'] = '<div id="form-closing-wrapper-' . $special_id . '">';
+		$form['#suffix'] = '</div>';		
+		$form = _ajax_form_entity_build_entity_forms($entity_type, array(), array(), $entity);		
+
+		
+		$form['#prefix'] .= l(t('Close'), 'ajax-form-entity-cancel/nojs/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
+
+		// $form .= '</div>';
+		$render_form = drupal_render($form);
+    $commands = array();
+    $commands[] = ajax_command_css('#ajax-entity-form-' . $special_id, array('display' => 'none'));
+		$commands[] = ajax_command_append('#ajax-entity-form-wrapper-' . $special_id, $render_form);
+    $page = array('#type' => 'ajax', '#commands' => $commands);
+    ajax_deliver($page);
+  } else { //Print a message and redirect to the page if javascript disabled
+    drupal_set_message($message);
+    drupal_goto($_SERVER['HTTP_REFERER']);
+  }
+
+}
+
+/**
+ * Ajax callback for deletion (ajax delete link)
+ *
+ */
+function ajax_form_entity_entity_delete($type = 'ajax'){
+
+  if ($type == 'ajax') {
+		$message = t('Deleted');
+		//TODO : use hook_menu page argument
+		//TODO : use hook_menu page argument
+		$entity_type = arg(3);
+		$entity_id = arg(4);
+		$special_id = arg(5);
+		entity_delete($entity_type, $entity_id);
+		$commands[] = ajax_command_replace('#ajax-entity-form-' . $special_id, $message . theme('status_messages'));
+
+		$page = array('#type' => 'ajax', '#commands' => $commands);
+		ajax_deliver($page);
+	} else {
+			//TODO : no javascript
+	}
+}
+
+/**
+ * Ajax callback for closing / cancelling action and reloading the entity
+ *
+ */
+function ajax_form_entity_entity_cancel($type = 'ajax'){
+	//TODO : use hook_menu page argument
+	$special_id = arg(2);
+	$commands[] = ajax_command_css('#ajax-entity-form-' . $special_id, array('display' => 'block'));
+	$commands[] = ajax_command_remove('#form-closing-wrapper-' . $special_id);
+	$page = array('#type' => 'ajax', '#commands' => $commands);
+	ajax_deliver($page);
+
+}

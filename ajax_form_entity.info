@@ -1,1 +1,7 @@
-name = Ajax form entity
+name = "Ajax form entity"
+description = "Allow to update entities via AJAX"
+core = "7.x"
+version = "7.x-1.0"
+package = "Administration"
+dependencies[] = "entity"
+configure = admin/config/ajax-form-entity
