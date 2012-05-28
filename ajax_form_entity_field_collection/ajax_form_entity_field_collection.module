@@ -22,8 +22,8 @@ function ajax_form_entity_field_collection_field_formatter_info() {
  */
 function ajax_form_entity_field_collection_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
   $element = array();
-	$form_state = array();
-	form_load_include($form_state, 'inc', 'node', 'field_collection.pages');
+  $form_state = array();
+  form_load_include($form_state, 'inc', 'node', 'field_collection.pages');
   switch ($display['type']) {
     case 'ajax_field_collection':
      $view_mode = !empty($display['settings']['view_mode']) ? $display['settings']['view_mode'] : 'full';
@@ -32,22 +32,24 @@ function ajax_form_entity_field_collection_field_formatter_view($entity_type, $e
           $element[$delta]['entity'] = $field_collection->view($view_mode);
         }
       }
-			field_collection_field_formatter_links($element, $entity_type, $entity, $field, $instance, $langcode, $items, $display);
+      field_collection_field_formatter_links($element, $entity_type, $entity, $field, $instance, $langcode, $items, $display);
       break;
   }
-	
-	//Add form element at the end. //TODO : check wether we should add or not (permissions, number of fields...)
-	$settings = variable_get('ajax_form_entity_' . $entity_type . '_' . $entity->type, NULL);
-	//Set global variable @see hook_form_alter in ajax_form_entity.module
-	global $_ajax_form_entity_field_collection;
-	$_ajax_form_entity_field_collection['host_entity_type'] = $entity_type;
-	$_ajax_form_entity_field_collection['host_entity_id'] = $entity->{$settings['id']};			
-
-	$new_form_build = field_collection_item_add($field['field_name'], $entity_type , $entity->{$settings['id']});	
-	if($delta >= 0)
-		$element[$delta]['#suffix'] .= drupal_render($new_form_build);
-	else
-		$element['#suffix'] .= drupal_render($new_form_build);
   
+  // Add form element at the end. //TODO : check wether we should add or not (permissions, number of fields...).
+  $settings = variable_get('ajax_form_entity_' . $entity_type . '_' . $entity->type, NULL);
+  // Set global variable @see hook_form_alter in ajax_form_entity.module.
+  global $_ajax_form_entity_field_collection;
+  $_ajax_form_entity_field_collection['host_entity_type'] = $entity_type;
+  $_ajax_form_entity_field_collection['host_entity_id'] = $entity->{$settings['id']};      
+
+  $new_form_build = field_collection_item_add($field['field_name'], $entity_type , $entity->{$settings['id']});  
+  if ($delta >= 0) {
+    $element[$delta]['#suffix'] .= drupal_render($new_form_build);
+  }
+  else {
+    $element['#suffix'] .= drupal_render($new_form_build);
+  }
+
   return $element;
 }
