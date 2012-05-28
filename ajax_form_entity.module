@@ -1,28 +1,27 @@
 <?php
 
-/*
+/**
  * TODO (in French : to be added into the issue queue)
 
  URGENT : 
  -  Gestion des commentaires : lien de réponse également + revoir ajax comments
- -  Field collection : il y a des cas où cela ne fonctionne pas (sans doute pb avec le bouton "fermé") ? 
  -  Blocs pour toutes les entités possibles : à mettre dans un autre module... THOMAS : A REVOIR !
- -  Submitted by pour les entités : test module submited by pour les noeuds. Gérer le submitted by différemment pour les entités. THOMAS
- -  Test user
- -  Test taxonomy
+ -  Création user / taxonomy
  -  Construction des formulaires plus général.
+ -  Restreindre la liste des entités affichées
+ -  Remonter là où il faut à l'action ajax (ne remonte pas notamment quand même erreur est déclenchée).
+ -  Test message
 
  MOINS URGENT :
-  -  masquer en js les boutons "transfer" pour les fichiers
-  -  Ne remonte pas si la même erreur est déclenchée  
-  -  S'occuper du titre également pour les pages (noeuds, commentaires...) et du submitted by
+  -  masquer en js les boutons "transfer" pour les fichiers 
+  -  S'occuper du titre également pour les pages (noeuds, commentaires...). Cf. entity_view et entity_uri. Il faudrait savoir si on est sur la page de l'entité ou non.
   -  Attention aux permissions (dont field collection si champ n'est pas à unlimited.
   -  Message qui disparaît avec un fade.
   -  revoir condition contre ajaxification formulaire d'admin
   -  Gestion des aperçus.  
   -  Si javascript désactivé
-  -  Sortir provide a block dans un autre module ?
-  -  Rechargement du formulaire de commentaire pose parfois des soucis...
+	-  Options de lien d'annulation (comme le placement, l'affichage ou non...)
+	-  Intégration avec Views pour toutes les entités
  
 BONUS : 
  ajout de js pour les settings
@@ -39,6 +38,8 @@ BONUS :
 
 //Must load it to ensure proper submission of node forms (multiple times). TODO : include only if at least one node form is activated.
 module_load_include('inc', 'node', 'node.pages');
+module_load_include('inc', 'user', 'user.pages');
+// module_load_include('inc', 'taxonomy', 'taxonomy.admin');
 
 if (module_exists('field_collection'))
   module_load_include('inc', 'field_collection', 'field_collection.pages');
@@ -70,9 +71,8 @@ function ajax_form_entity_menu() {
     'page arguments' => array('ajax_form_entity_form'),
     'description' => 'Configuration of ajax form entity',
     'access arguments' => array('administer ajax for entity'),
-    'file' => 'ajax_form_entity.admin.inc',    
-    'type' => MENU_NORMAL_ITEM, 
-
+    'file' => 'ajax_form_entity.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
   );
   $items['ajax-form-entity-edit/%'] = array(
     'page callback' => 'ajax_form_entity_entity_edit',
@@ -92,10 +92,6 @@ function ajax_form_entity_menu() {
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
   );
-  
-
-  
-  
   return $items;
 }
 
@@ -135,15 +131,18 @@ function _ajax_form_entity_load_entities() {
  */
 function ajax_form_entity_form_alter(&$form, $form_state) {
 
+
   //Check if we have an entityform (but no administration form).
   //Do not use $form['#id'] because it may change
   // if (isset($form['#entity_type']) && isset($form['#bundle']) && (isset ($form_state['build_info']['files']['menu']) && !strpos($form_state['build_info']['files']['menu'], 'field_ui.admin.inc'))) {
   
   //TODO : improve detection of admin forms.
-  if (isset($form['#entity_type']) && isset($form['#bundle']) && !(arg(0) == 'admin' && arg(1) == 'structure')) {
+  if (isset($form['#entity_type']) && isset($form['#bundle']) && !(arg(5) == 'fields')) {
+	
     // dpm($form);
     // dpm($form_state);
     $settings = variable_get('ajax_form_entity_' . $form['#entity_type'] . '_' . $form['#bundle'], array());
+
     if (isset($settings['activate']) && $settings['activate']) {
       //Adds containers for messages & entity view, and form reload wrapper (as form ID in $form may be different from the HTML ID whith AJAX issues)
       if (!isset($form['#prefix']) || !strpos($form['#prefix'], 'form-message-wrapper')) {
@@ -163,24 +162,25 @@ function ajax_form_entity_form_alter(&$form, $form_state) {
         );
 
       //Compatibility with field collection if on the field collection adding page
-      global $_ajax_form_entity_field_collection;  
-        if ($form['#entity_type'] == 'field_collection_item') {
-          if (arg(0) == 'field-collection') {
-          $host_entity_type = arg(3);
-          $host_entity_id = arg(4);
-        } 
-        elseif ($_ajax_form_entity_field_collection['host_entity_id']) {
-          $host_entity_type = $_ajax_form_entity_field_collection['host_entity_type'];
-          $host_entity_id = $_ajax_form_entity_field_collection['host_entity_id'];        
-        }
-        $form['host_entity_type'] = array(
-            '#type' => 'value',
-            '#value' => $host_entity_type
-          );
-          $form['host_entity_id'] = array(
-            '#type' => 'value',
-            '#value' => $host_entity_id
-          );        
+      
+			if ($form['#entity_type'] == 'field_collection_item') {
+				global $_ajax_form_entity_field_collection;  
+				if (arg(0) == 'field-collection') {
+					$host_entity_type = arg(3);
+					$host_entity_id = arg(4);
+				} 
+			elseif ($_ajax_form_entity_field_collection['host_entity_id']) {
+				$host_entity_type = $_ajax_form_entity_field_collection['host_entity_type'];
+				$host_entity_id = $_ajax_form_entity_field_collection['host_entity_id'];        
+			}
+			$form['host_entity_type'] = array(
+					'#type' => 'value',
+					'#value' => $host_entity_type
+				);
+				$form['host_entity_id'] = array(
+					'#type' => 'value',
+					'#value' => $host_entity_id
+				);        
       }
 
       //Add ajax callback to the submit button
@@ -279,7 +279,39 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
         return drupal_get_form($entity[$entity_id]->type . '_node_form', $entity[$entity_id]);
       }
       break;
-  
+ 
+    //User form
+    case 'user':
+      //Case of creation and case of edition
+			//TODO : case of creation...
+      if (!$entity) {
+        // global $user;
+        $entity = (object) array(); //TODO 
+        $new_form_state['input'] = array(); //TODO 
+        $new_form_state['build_info']['args'][] = $entity; //TODO 
+        return drupal_build_form($form['#form_id'], $new_form_state); //TODO 
+      } else {    	
+        $entity_id = key($entity);    
+        return drupal_get_form('user_profile_form', $entity[$entity_id]);
+      }
+      break;
+ 
+     //User form
+    case 'taxonomy':
+      //Case of creation and case of edition
+			//TODO : case of creation...
+      if (!$entity) {
+        // global $user;
+        $entity = (object) array(); //TODO 
+        $new_form_state['input'] = array(); //TODO 
+        $new_form_state['build_info']['args'][] = $entity; //TODO 
+        return drupal_build_form($form['#form_id'], $new_form_state); //TODO 
+      } else {    	
+        $entity_id = key($entity);    
+        return drupal_get_form('taxonomy_form_term', $entity[$entity_id]);
+      }
+      break;
+ 
     //Comment form
     case 'comment':
       if (!$entity) {  
@@ -324,12 +356,12 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
       }
       // $entity->setHostEntity();
       //Set new form with host entity informations
-      $new_form_state['input'] = array();
-      $new_form_state['build_info']['args'][] = $entity;  
-      $new_form_state['build_info']['args']['host_entity_id'] = $host_entity_id ;
-      $new_form_state['build_info']['args']['host_entity_type'] = $host_entity_type;
+      // $new_form_state['input'] = array();
+      // $new_form_state['build_info']['args'][] = $entity;  
+      // $new_form_state['build_info']['args']['host_entity_id'] = $host_entity_id ;
+      // $new_form_state['build_info']['args']['host_entity_type'] = $host_entity_type;
 
-      return drupal_build_form($form['#form_id'], $new_form_state);
+      // return drupal_build_form($form['#form_id'], $new_form_state);
       
       break;
     default:
@@ -382,19 +414,32 @@ function ajax_form_entity_entity_view_alter(&$build, $type) {
   $settings = variable_get('ajax_form_entity_' . $type . '_' . $bundle, array());
 
   if (isset($settings['activate']) && $settings['activate']) {
-
-    //Get the entity ID (normally wrapped into $build['#name_of_the_entity']
-    $entity_type = '#' . $type;    
-    $entity_id = $build[$entity_type]->{$settings['id']};
+		switch ($type) {
+			case 'user':
+				$entity_id = $build['#account']->{$settings['id']};
+				break;
+			case 'field_collection_item':
+				$entity_id = $build['#entity']->{$settings['id']};
+				break;
+			default:
+				$entity_id = $build['#' . $type]->{$settings['id']};
+		}		
     
     //Special ID for multiple form cases
     $special_id = uniqid();
     drupal_add_library('system', 'drupal.ajax');
     
     //Special wrapper
-    $build['#prefix'] = '<div id="ajax-entity-form-' . $special_id . '">' . $build['#prefix'];
-    $build['#suffix'] .= '</div><div id="ajax-entity-form-wrapper-' . $special_id . '"></div>';
-
+		if (isset($build['#prefix']))
+			$build['#prefix'] = '<div id="ajax-entity-form-' . $special_id . '">' . $build['#prefix'];
+		else
+			$build['#prefix'] = '<div id="ajax-entity-form-' . $special_id . '">';	
+		if (isset($build['#suffix']))
+			$build['#suffix'] .= '</div><div id="ajax-entity-form-wrapper-' . $special_id . '"></div>';
+		else
+			$build['#suffix'] = '</div><div id="ajax-entity-form-wrapper-' . $special_id . '"></div>';
+			
+			
     //If AJAX links are activated, add  them
     if ($settings['edit_activate']) {
       $build['ajax_edit_link']['#markup'] = '<div id="ajax-entity-form-edit ajax-entity-form-edit-' . $special_id . '">';
@@ -429,7 +474,6 @@ function ajax_form_entity_entity_edit($type = 'ajax') {
   
     $form_state['build_info']['args'][] = $entity;
     
-    //TODO : theming function ?
     $form['#prefix'] = '<div id="form-closing-wrapper-' . $special_id . '">';
     $form['#suffix'] = '</div>';    
     $form = _ajax_form_entity_build_entity_forms($entity_type, array(), array(), $entity);    
@@ -482,7 +526,7 @@ function ajax_form_entity_entity_cancel($type = 'ajax') {
   //TODO : use hook_menu page argument
   $special_id = arg(2);
   $commands[] = ajax_command_css('#ajax-entity-form-' . $special_id, array('display' => 'block'));
-  $commands[] = ajax_command_remove('#form-closing-wrapper-' . $special_id);
+  $commands[] = ajax_command_remove('#ajax-entity-form-wrapper-' . $special_id);
   $page = array('#type' => 'ajax', '#commands' => $commands);
   ajax_deliver($page);
 

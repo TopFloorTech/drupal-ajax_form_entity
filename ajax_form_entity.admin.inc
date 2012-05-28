@@ -15,7 +15,7 @@ function ajax_form_entity_form() {
 
   $entities = _ajax_form_entity_load_entities();
   // dpm($entities);
-  foreach ($entities AS $entity_name => $entity) {
+  foreach ($entities as $entity_name => $entity) {
     $form[$entity_name] = array(
       '#type' => 'vertical_tabs',
       '#prefix' => $entity['label'],
@@ -27,7 +27,7 @@ function ajax_form_entity_form() {
     );
     $view_mode = array();
     $view_modes = array_keys($entity['view modes']);
-    foreach ($entity['bundles'] AS $bundle_name => $bundle) {
+    foreach ($entity['bundles'] as $bundle_name => $bundle) {
       $settings = variable_get('ajax_form_entity_' . $entity_name . '_' . $bundle_name, NULL);
 
       $form[$entity_name][$bundle_name] = array(
