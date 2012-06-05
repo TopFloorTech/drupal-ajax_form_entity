@@ -14,13 +14,12 @@ function ajax_form_entity_form() {
   $form['#prefix'] = '<div id="form-message-wrapper"></div>';
 
   $entities = _ajax_form_entity_load_entities();
-  // dpm($entities);
   foreach ($entities as $entity_name => $entity) {
     $form[$entity_name] = array(
       '#type' => 'vertical_tabs',
       '#prefix' => $entity['label'],
     );
-    //Store the ID for the future
+    // Store the ID for the future.
     $form[$entity_name]['id'] = array(
       '#type' => 'value',
       '#value' => $entity['entity keys']['id'],
@@ -33,22 +32,22 @@ function ajax_form_entity_form() {
       $form[$entity_name][$bundle_name] = array(
         '#type' => 'fieldset',
         '#title' => check_plain($bundle['label']),
-      );      
+      );
       $form[$entity_name][$bundle_name][$entity_name . '_' . $bundle_name . '_activate'] = array(
         '#type' => 'checkbox',
         '#title' => t('Activate for') . ' ' . check_plain($bundle['label']),
         '#default_value' => isset($settings) ? $settings['activate'] : 0,
-      );    
+      );
       $form[$entity_name][$bundle_name][$entity_name . '_' . $bundle_name . '_edit_activate'] = array(
         '#type' => 'checkbox',
         '#title' => t('Add an AJAX edit link'),
         '#default_value' => isset($settings) ? $settings['edit_activate'] : 0,
-      );  
+      );
       $form[$entity_name][$bundle_name][$entity_name . '_' . $bundle_name . '_delete_activate'] = array(
         '#type' => 'checkbox',
         '#title' => t('Add an AJAX delete link'),
         '#default_value' => isset($settings) ? $settings['delete_activate'] : 0,
-      );       
+      );
       $form[$entity_name][$bundle_name]['creation'] = array(
         '#type' => 'fieldset',
         '#description' => t('Creation settings'),
@@ -111,12 +110,11 @@ function ajax_form_entity_form_submit($form, &$form_state) {
       $settings['reload'] = $form_state['values'][$entity_name . '_' . $bundle_name . '_reload'];
       $settings['view_mode_region'] = $form_state['values'][$entity_name . '_' . $bundle_name . '_view_mode_region'];
       $settings['view_mode'] = $form_state['values'][$entity_name . '_' . $bundle_name . '_view_mode'];
-
       variable_set('ajax_form_entity_' . $entity_name . '_' . $bundle_name, $settings);
     }
   }
 
-  //Clear entity info to rebuild extra fields (ajax link on display).
+  // Clear entity info to rebuild extra fields (ajax link on display).
   entity_info_cache_clear();
   drupal_set_message(t('Configurations have been saved'));
 }
