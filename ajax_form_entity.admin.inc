@@ -69,8 +69,8 @@ function ajax_form_entity_form() {
         '#type' => 'select',
         '#title' => t('On creation'),
         '#options' => array(
-            'top' => t('Show the result at the top'), 
-            'bottom' => t('Show the result at the bottom'), 
+            'top' => t('Show the result at the top'),
+            'bottom' => t('Show the result at the bottom'),
             0 => t('Do not show the result')
         ),
         '#default_value' => isset($settings) ? $settings['view_mode_region'] : 'top',
@@ -87,7 +87,7 @@ function ajax_form_entity_form() {
     '#type' => 'submit',
     '#value' => t('Submit'),
   );
-  return $form; 
+  return $form;
 }
 
 /**
