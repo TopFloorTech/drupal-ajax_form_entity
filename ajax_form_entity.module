@@ -1,45 +1,45 @@
 <?php
+/**
+ * @file
+ * Ajaxify entity forms.
+ */
 
 /**
  * TODO (translate into English if there are other commiters + to be added into the issue queue)
-
- URGENT :
- -  Gestion des commentaires : lien de réponse également + revoir ajax comments
- -  Création user / taxonomy
- -  Construction des formulaires plus général.
- -  Restreindre la liste des entités affichées
- -  Remonter là où il faut à l'action ajax (ne remonte pas notamment quand même erreur est déclenchée).
- -  Test message
- -  Au second commentaire, on n'a plus d'AJAX
-
- MOINS URGENT :
-  -  masquer en js les boutons "transfer" pour les fichiers
-  -  S'occuper du titre également pour les pages (noeuds, commentaires...). Cf. entity_view et entity_uri. Il faudrait savoir si on est sur la page de l'entité ou non.
-  -  Attention aux permissions (dont field collection si champ n'est pas à unlimited.
-  -  Message qui disparaît avec un fade.
-  -  revoir condition contre ajaxification formulaire d'admin
-  -  Gestion des aperçus.
-  -  Si javascript désactivé
-  -  Options de lien d'annulation (comme le placement, l'affichage ou non...)
-  -  Intégration avec Views pour toutes les entités
-
-BONUS :
- ajout de js pour les settings
- configs dans une page à part
- help text
-  créer des blocs pour les formulaires de noeuds
-  idée : suppression => mise en cache avec expiration + bouton "annuler" : on supprime donc, mais on peut annuler. Attention, soucis pour les commentaires, etc.
-  visualisation des commentaires : graphiquement décalés, cf. ajax comment
- ajaxifier voir / modifier + modifier les classes css pour switcher les onglets
- choisir les settings pour tous les bundles dans la page de config
- faire en sorte de travailler avec trash ou un module similaire.
+ * 
+ * URGENT :
+ *  -  Gestion des commentaires : lien de réponse également + revoir ajax comments
+ *  -  Création user / taxonomy
+ *  -  Construction des formulaires plus général.
+ *  -  Restreindre la liste des entités affichées
+ *  -  Remonter là où il faut à l'action ajax (ne remonte pas notamment quand même erreur est déclenchée).
+ *  -  Au second commentaire, on n'a plus d'AJAX
+ * 
+ *  MOINS URGENT :
+ *   -  masquer en js les boutons "transfer" pour les fichiers
+ *   -  S'occuper du titre également pour les pages (noeuds, commentaires...). Cf. entity_view et entity_uri. Il faudrait savoir si on est sur la page de l'entité ou non.
+ * -  Attention aux permissions (dont field collection si champ n'est pas à unlimited.
+ * -  Message qui disparaît avec un fade.
+ * -  revoir condition contre ajaxification formulaire d'admin
+ * -  Gestion des aperçus.
+ * -  Si javascript désactivé
+ * -  Options de lien d'annulation (comme le placement, l'affichage ou non...)
+ * -  Intégration avec Views pour toutes les entités
+ * BONUS :
+ * ajout de js pour les settings
+ * configs dans une page à part
+ * help text
+ * visualisation des commentaires : graphiquement décalés, cf. ajax comment
+ * choisir les settings pour tous les bundles dans la page de config
+ * faire en sorte de travailler avec trash ou un module similaire.
 
 */
 
 // Must load it to ensure proper submission of node forms (multiple times). TODO : include only if at least one node form is activated.
 module_load_include('inc', 'node', 'node.pages');
-module_load_include('inc', 'user', 'user.pages');
 // module_load_include('inc', 'taxonomy', 'taxonomy.admin');
+module_load_include('inc', 'user', 'user.pages');
+
 
 if (module_exists('field_collection')) {
   module_load_include('inc', 'field_collection', 'field_collection.pages');
@@ -54,7 +54,7 @@ if (module_exists('entityform')) {
  */
 function ajax_form_entity_permission() {
   return array(
-      'access content' => array(
+    'access content' => array(
       'title' => t('Administer Ajax form entity'),
       'description' => t('Allow to administer settings for ajax form entity'),
       'restrict access' => TRUE,
@@ -133,7 +133,6 @@ function ajax_form_entity_form_alter(&$form, $form_state) {
 
   // Check if we have an entityform (but no administration form).
   // Do not use $form['#id'] because it may change.
-
   // TODO : improve detection of admin forms.
   if (isset($form['#entity_type']) && isset($form['#bundle']) && !(arg(0) == 'admin')) {
 
@@ -170,9 +169,9 @@ function ajax_form_entity_form_alter(&$form, $form_state) {
           $host_entity_id = $_ajax_form_entity_field_collection['host_entity_id'];
         }
         $form['host_entity_type'] = array(
-            '#type' => 'value',
-            '#value' => $host_entity_type,
-          );
+          '#type' => 'value',
+          '#value' => $host_entity_type,
+        );
         $form['host_entity_id'] = array(
           '#type' => 'value',
           '#value' => $host_entity_id,
@@ -249,7 +248,7 @@ function ajax_form_entity_callback($form, $form_state) {
 }
 
 /**
- * Helper function to build forms arguments depending on the entity
+ * Helper function to build forms arguments depending on the entity.
  * @return array() with form arguments
  */
 function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $form_state = array(), $entity = NULL) {
@@ -262,7 +261,12 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
       // Case of creation and case of edition.
       if (!$entity) {
         global $user;
-        $entity = (object) array('uid' => $user->uid, 'name' => (isset($user->name) ? $user->name : ''), 'type' => $form['type']['#value'], 'language' => LANGUAGE_NONE);
+        $entity = (object) array(
+          'uid' => $user->uid, 
+          'name' => (isset($user->name) ? $user->name : ''), 
+          'type' => $form['type']['#value'], 
+          'language' => LANGUAGE_NONE,
+        );
         $new_form_state['input'] = array();
         $new_form_state['build_info']['args'][] = $entity;
         return drupal_build_form($form['#form_id'], $new_form_state);
@@ -275,12 +279,11 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
 
     // User form.
     case 'user':
-      // TODO : case of creation.
       if (!$entity) {
-        $entity = (object) array(); // TODO
-        $new_form_state['input'] = array(); // TODO
-        $new_form_state['build_info']['args'][] = $entity; // TODO
-        return drupal_build_form($form['#form_id'], $new_form_state); // TODO
+        $entity = (object) array();
+        $new_form_state['input'] = array();
+        $new_form_state['build_info']['args'][] = $entity;
+        return drupal_build_form($form['#form_id'], $new_form_state);
       }
       else {
         $entity_id = key($entity);
@@ -290,12 +293,11 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
 
     // User form.
     case 'taxonomy':
-      // TODO : case of creation.
       if (!$entity) {
-        $entity = (object) array(); // TODO
-        $new_form_state['input'] = array(); // TODO
-        $new_form_state['build_info']['args'][] = $entity; // TODO
-        return drupal_build_form($form['#form_id'], $new_form_state); // TODO
+        $entity = (object) array();
+        $new_form_state['input'] = array();
+        $new_form_state['build_info']['args'][] = $entity;
+        return drupal_build_form($form['#form_id'], $new_form_state);
       }
       else {
         $entity_id = key($entity);
@@ -368,8 +370,8 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
 }
 
 /**
+ * Adds edit link and modify link.
  * Implements hook_field_extra_fields().
- * Adds edit link and modify link
  */
 function ajax_form_entity_field_extra_fields() {
   $extra = array();
@@ -401,7 +403,6 @@ function ajax_form_entity_field_extra_fields() {
 
 /**
  * Implements hook_entity_view_alter().
- *
  */
 function ajax_form_entity_entity_view_alter(&$build, $type) {
 
@@ -496,8 +497,7 @@ function ajax_form_entity_entity_edit($type = 'ajax') {
 }
 
 /**
- * Ajax callback for deletion (ajax delete link)
- *
+ * Ajax callback for deletion (ajax delete link).
  */
 function ajax_form_entity_entity_delete($type = 'ajax') {
 
@@ -520,7 +520,6 @@ function ajax_form_entity_entity_delete($type = 'ajax') {
 
 /**
  * Ajax callback for closing / cancelling action and reloading the entity.
- *
  */
 function ajax_form_entity_entity_cancel($type = 'ajax') {
   // TODO : use hook_menu page argument.
@@ -529,5 +528,4 @@ function ajax_form_entity_entity_cancel($type = 'ajax') {
   $commands[] = ajax_command_replace('#ajax-entity-form-wrapper-' . $special_id, '<div id="ajax-entity-form-wrapper-' . $special_id . '"></div>');
   $page = array('#type' => 'ajax', '#commands' => $commands);
   ajax_deliver($page);
-
 }

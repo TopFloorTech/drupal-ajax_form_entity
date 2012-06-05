@@ -1,5 +1,4 @@
 <?php
-
 /**
  * @file
  * Administration form settings
@@ -69,9 +68,9 @@ function ajax_form_entity_form() {
         '#type' => 'select',
         '#title' => t('On creation'),
         '#options' => array(
-            'top' => t('Show the result at the top'),
-            'bottom' => t('Show the result at the bottom'),
-            0 => t('Do not show the result'),
+          'top' => t('Show the result at the top'),
+          'bottom' => t('Show the result at the bottom'),
+          0 => t('Do not show the result'),
         ),
         '#default_value' => isset($settings) ? $settings['view_mode_region'] : 'top',
       );
@@ -91,11 +90,9 @@ function ajax_form_entity_form() {
 }
 
 /**
- * Implements hook_form_submit().
  * Saves one variable per bundle.
- * 
+ * Implements hook_form_submit().
  */
-
 function ajax_form_entity_form_submit($form, &$form_state) {
 
   $entities = _ajax_form_entity_load_entities();
