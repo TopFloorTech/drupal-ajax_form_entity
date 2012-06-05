@@ -452,13 +452,15 @@ function ajax_form_entity_entity_view_alter(&$build, $type) {
       
       
     // If AJAX links are activated, add  them.
+		$class = 'ajax-entity-form-' . str_replace('_', '-', $type);
+		$class = ' ajax-entity-form-' . str_replace('_', '-', $type . '-' . $bundle);
     if ($settings['edit_activate']) {
-      $build['ajax_edit_link']['#markup'] = '<div id="ajax-entity-form-edit ajax-entity-form-edit-' . $special_id . '">';
+      $build['ajax_edit_link']['#markup'] = '<div id="ajax-entity-form-edit-' . $special_id . '" class="ajax-entity-form-edit ' . $class . '" >';
       $build['ajax_edit_link']['#markup'] .= l(t('Edit'), 'ajax-form-entity-edit/edit/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
       $build['ajax_edit_link']['#markup'] .= '</div>';
     }
     if ($settings['delete_activate']) {
-      $build['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete ajax-entity-form-delete-' . $special_id . '">';
+      $build['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete-' . $special_id . '" class="ajax-entity-form-edit ' . $class . '">';
       $build['ajax_delete_link']['#markup'] .= l(t('delete'), 'ajax-form-entity-delete/delete/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
       $build['ajax_delete_link']['#markup'] .= '</div>';    
     }    
