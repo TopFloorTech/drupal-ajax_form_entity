@@ -2,7 +2,7 @@
 
 /**
  * Implements hook_field_formatter_info().
- *
+ * @file provide formatter for ajax add / edition field collection.
  * @see ajax_form_entity_field_collection_field_formatter_view()
  */
 function ajax_form_entity_field_collection_field_formatter_info() {
@@ -45,7 +45,7 @@ function ajax_form_entity_field_collection_field_formatter_view($entity_type, $e
     global $_ajax_form_entity_field_collection;
     $_ajax_form_entity_field_collection['host_entity_type'] = $entity_type;
     // TODO : have a more general way to do it : it seems we do not have the bundle here.
-    // For user
+    // For user.
     if ($entity_type == 'user') {
       $bundle = 'user';
     }
@@ -57,7 +57,7 @@ function ajax_form_entity_field_collection_field_formatter_view($entity_type, $e
     $_ajax_form_entity_field_collection['host_entity_id'] = $entity->{$host_settings['id']};
     // Need to get the title that would be overriden by field_collection_item_add function
     $title = drupal_get_title();
-    $new_form_build = field_collection_item_add($field['field_name'], $entity_type , $entity->{$host_settings['id']});
+    $new_form_build = field_collection_item_add($field['field_name'], $entity_type, $entity->{$host_settings['id']});
     $element[]['#suffix'] .= drupal_render($new_form_build);
     drupal_set_title($title);
   }

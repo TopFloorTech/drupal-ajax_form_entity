@@ -41,21 +41,23 @@ module_load_include('inc', 'node', 'node.pages');
 module_load_include('inc', 'user', 'user.pages');
 // module_load_include('inc', 'taxonomy', 'taxonomy.admin');
 
-if (module_exists('field_collection'))
+if (module_exists('field_collection')) {
   module_load_include('inc', 'field_collection', 'field_collection.pages');
+}
 
-if (module_exists('entityform'))
+if (module_exists('entityform')) {
   module_load_include('inc', 'entityform', 'entityform.admin');
+}
 
 /**
  * Implements hook_permission().
  */
 function ajax_form_entity_permission() {
   return array(
-    'access content' => array(
-    'title' => t('Administer Ajax form entity'),
-    'description' => t('Allow to administer settings for ajax form entity'),
-    'restrict access' => TRUE,
+      'access content' => array(
+      'title' => t('Administer Ajax form entity'),
+      'description' => t('Allow to administer settings for ajax form entity'),
+      'restrict access' => TRUE,
     ),
   );
 }
@@ -97,7 +99,6 @@ function ajax_form_entity_menu() {
 
 /**
  * Helper function to correct badly declared entities.
- *
  */
 function _ajax_form_entity_load_entities() {
 
@@ -106,17 +107,19 @@ function _ajax_form_entity_load_entities() {
   $entities = module_invoke_all('entity_info');
 
   // Only select fieldable entites that have bundle defined.
-  foreach ($entities AS $entity_name => $entity) {
-    if (isset($entity['fieldable']) && isset($entity['bundles']) && $entity['bundles'])
-    $return_entities[$entity_name] =$entity;
+  foreach ($entities as $entity_name => $entity) {
+    if (isset($entity['fieldable']) && isset($entity['bundles']) && $entity['bundles']) {
+      $return_entities[$entity_name] =$entity;
+    }
   }
 
   // Correction for entityforms that do not declare its bundles.
   if ($entities['entityform_type']) {
     $results = db_query("SELECT type, label FROM {entityform_type}"); // TODO : use entityform_get_types
     $return_entities['entityform'] = $entities['entityform'];
-    foreach ($results AS $result)
+    foreach ($results as $result) {
       $return_entities['entityform']['bundles'][$result->type]['label'] = $result->label;
+    }
   }
 
   return $return_entities;
@@ -124,11 +127,9 @@ function _ajax_form_entity_load_entities() {
 
 /**
  * Form builder; the entity wall message add form.
- *
  * @ingroup forms
  */
 function ajax_form_entity_form_alter(&$form, $form_state) {
-
 
   // Check if we have an entityform (but no administration form).
   // Do not use $form['#id'] because it may change.
@@ -139,7 +140,7 @@ function ajax_form_entity_form_alter(&$form, $form_state) {
     $settings = variable_get('ajax_form_entity_' . $form['#entity_type'] . '_' . $form['#bundle'], array());
 
     if (isset($settings['activate']) && $settings['activate']) {
-      // Adds containers for messages & entity view, and form reload wrapper (as form ID in $form may be different from the HTML ID whith AJAX issues)
+      // Adds containers for messages & entity view, and form reload wrapper (as form ID in $form may be different from the HTML ID whith AJAX issues).
       if (!isset($form['#prefix']) || !strpos($form['#prefix'], 'form-message-wrapper')) {
         $form['#prefix'] = '<div id="form-message-wrapper-' . $form['#build_id'] . '"></div><div id="preview-wrapper-top-' . $form['#build_id'] . '"></div><div id="form-reload-' . $form['#build_id'] . '">';
         $form['#suffix'] = '</div><div id="preview-wrapper-bottom-' . $form['#build_id'] . '"></div>';
@@ -150,31 +151,31 @@ function ajax_form_entity_form_alter(&$form, $form_state) {
       $id = $settings['id'];
 
       // Check if it is the first form (there are some settings if it is).
-      if (!isset($form_state['build_info']['args'][0]->{$id}) || !$form_state['build_info']['args'][0]->{$id})
+      if (!isset($form_state['build_info']['args'][0]->{$id}) || !$form_state['build_info']['args'][0]->{$id}) {
         $form['new'] = array(
           '#type' => 'value',
-          '#value' => TRUE
+          '#value' => TRUE,
         );
+      }
 
       // Compatibility with field collection if on the field collection adding page.
-
       if ($form['#entity_type'] == 'field_collection_item') {
         global $_ajax_form_entity_field_collection;
         if (arg(0) == 'field-collection') {
           $host_entity_type = arg(3);
           $host_entity_id = arg(4);
         }
-      elseif ($_ajax_form_entity_field_collection['host_entity_id']) {
-        $host_entity_type = $_ajax_form_entity_field_collection['host_entity_type'];
-        $host_entity_id = $_ajax_form_entity_field_collection['host_entity_id'];
-      }
-      $form['host_entity_type'] = array(
-          '#type' => 'value',
-          '#value' => $host_entity_type
-        );
+        elseif ($_ajax_form_entity_field_collection['host_entity_id']) {
+          $host_entity_type = $_ajax_form_entity_field_collection['host_entity_type'];
+          $host_entity_id = $_ajax_form_entity_field_collection['host_entity_id'];
+        }
+        $form['host_entity_type'] = array(
+            '#type' => 'value',
+            '#value' => $host_entity_type,
+          );
         $form['host_entity_id'] = array(
           '#type' => 'value',
-          '#value' => $host_entity_id
+          '#value' => $host_entity_id,
         );
       }
 
@@ -190,9 +191,7 @@ function ajax_form_entity_form_alter(&$form, $form_state) {
 }
 
 /**
- * AJAX submit handler for entity message add form. Returns ajax commands to update
- * the relevant message comments.
- *
+ * AJAX submit handler for entity message add form. Returns ajax commands to update the relevant message comments.
  * @return ajax commands (append to messages wrapper)
  */
 function ajax_form_entity_callback($form, $form_state) {
@@ -201,7 +200,7 @@ function ajax_form_entity_callback($form, $form_state) {
   // Return just error messages if there is an error.
   if ($errors = form_get_errors()) {
     // Change classes of the forms to display them as error.
-    foreach ($errors AS $name => $message) {
+    foreach ($errors as $name => $message) {
       $commands[] = ajax_command_invoke('#edit-' . str_replace(array('_', ']['), '-', $name), 'addClass', array('error'));
     }
     $commands[] = ajax_command_replace('#form-message-wrapper-' . $form['#build_id'], theme('status_messages'));
@@ -251,7 +250,6 @@ function ajax_form_entity_callback($form, $form_state) {
 
 /**
  * Helper function to build forms arguments depending on the entity
- *
  * @return array() with form arguments
  */
 function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $form_state = array(), $entity = NULL) {
@@ -338,7 +336,6 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
     case 'field_collection_item':
       // Create new default field collection entity
       if (!$entity) {
-
         // TODO : use field_collection_item_add.
         // $field_name = $form_state['build_info']['args'][0]->field_name;
         // $host_entity_type = isset($form_state['values']['host_entity_type']) ? $form_state['values']['host_entity_type'] : $form_state['build_info']['args']['host_entity_type'];
@@ -353,7 +350,7 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
         $entity->setHostEntity($host_entity_type, $host_entity[$host_entity_id], LANGUAGE_NONE, FALSE);
         $new_form_state['input'] = array();
         $new_form_state['build_info']['args'][] = $entity;
-        $new_form_state['build_info']['args']['host_entity_id'] = $host_entity_id ;
+        $new_form_state['build_info']['args']['host_entity_id'] = $host_entity_id;
         $new_form_state['build_info']['args']['host_entity_type'] = $host_entity_type;
         return drupal_build_form($form['#form_id'], $new_form_state);
       }
@@ -378,22 +375,24 @@ function ajax_form_entity_field_extra_fields() {
   $extra = array();
   $entities = _ajax_form_entity_load_entities();
 
-  foreach ($entities AS $entity_name => $entity) {
-    foreach ($entity['bundles'] AS $bundle_name => $bundle) {
+  foreach ($entities as $entity_name => $entity) {
+    foreach ($entity['bundles'] as $bundle_name => $bundle) {
       $settings = variable_get('ajax_form_entity_' . $entity_name . '_' . $bundle_name, array());
       if (isset($settings)) {
-        if ($settings['edit_activate'])
+        if ($settings['edit_activate']) {
           $extra[$entity_name][$bundle_name]['display']['ajax_edit_link'] = array(
             'label' => t('Ajax edit link'),
             'description' =>  t('Ajax edit link'),
             'weight' => -1,
           );
-        if ($settings['delete_activate'])
+        }
+        if ($settings['delete_activate']) {
           $extra[$entity_name][$bundle_name]['display']['ajax_delete_link'] = array(
             'label' => t('Ajax delete link'),
             'description' =>  t('Ajax delete link'),
             'weight' => -1,
           );
+        }
       }
     }
   }
@@ -416,9 +415,11 @@ function ajax_form_entity_entity_view_alter(&$build, $type) {
       case 'user':
         $entity_id = $build['#account']->{$settings['id']};
         break;
+
       case 'field_collection_item':
         $entity_id = $build['#entity']->{$settings['id']};
         break;
+
       default:
         $entity_id = $build['#' . $type]->{$settings['id']};
     }
@@ -458,8 +459,7 @@ function ajax_form_entity_entity_view_alter(&$build, $type) {
 }
 
 /**
- * Ajax callback for edition (ajax delete link)
- *
+ * Ajax callback for edition (ajax delete link).
  */
 function ajax_form_entity_entity_edit($type = 'ajax') {
 
@@ -514,12 +514,12 @@ function ajax_form_entity_entity_delete($type = 'ajax') {
     ajax_deliver($page);
   }
   else {
-      // TODO : no javascript.
+    // TODO : no javascript.
   }
 }
 
 /**
- * Ajax callback for closing / cancelling action and reloading the entity
+ * Ajax callback for closing / cancelling action and reloading the entity.
  *
  */
 function ajax_form_entity_entity_cancel($type = 'ajax') {
