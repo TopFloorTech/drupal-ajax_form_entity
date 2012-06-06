@@ -32,7 +32,6 @@
  * visualisation des commentaires : graphiquement décalés, cf. ajax comment
  * choisir les settings pour tous les bundles dans la page de config
  * faire en sorte de travailler avec trash ou un module similaire.
-
 */
 
 // Must load it to ensure proper submission of node forms (multiple times). TODO : include only if at least one node form is activated.
@@ -262,9 +261,9 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
       if (!$entity) {
         global $user;
         $entity = (object) array(
-          'uid' => $user->uid, 
-          'name' => (isset($user->name) ? $user->name : ''), 
-          'type' => $form['type']['#value'], 
+          'uid' => $user->uid,
+          'name' => (isset($user->name) ? $user->name : ''),
+          'type' => $form['type']['#value'],
           'language' => LANGUAGE_NONE,
         );
         $new_form_state['input'] = array();
@@ -336,14 +335,14 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
       break;
 
     case 'field_collection_item':
-      // Create new default field collection entity
+      // Create new default field collection entity.
       if (!$entity) {
         // TODO : use field_collection_item_add.
         // $field_name = $form_state['build_info']['args'][0]->field_name;
         // $host_entity_type = isset($form_state['values']['host_entity_type']) ? $form_state['values']['host_entity_type'] : $form_state['build_info']['args']['host_entity_type'];
         // $host_entity_id = isset($form_state['values']['host_entity_id']) ? $form_state['values']['host_entity_id'] : $form_state['build_info']['args']['host_entity_id'];
         // return array('#markup' => field_collection_item_add($field_name, $host_entity_type , $host_entity_id));
-        $entity = new FieldCollectionItemEntity;
+        $entity = new FieldCollectionItemEntity();
         $host_entity_type = isset($form_state['values']['host_entity_type']) ? $form_state['values']['host_entity_type'] : $form_state['build_info']['args']['host_entity_type'];
         $host_entity_id = isset($form_state['values']['host_entity_id']) ? $form_state['values']['host_entity_id'] : $form_state['build_info']['args']['host_entity_id'];
         $ids[] = $host_entity_id;
@@ -360,8 +359,8 @@ function _ajax_form_entity_build_entity_forms($entity_type, $form = array(), $fo
         $entity_id = key($entity);
         return drupal_get_form('field_collection_item_form', $entity[$entity_id]);
       }
-
       break;
+
     default:
       break;
   }
@@ -452,7 +451,7 @@ function ajax_form_entity_entity_view_alter(&$build, $type) {
       $build['ajax_edit_link']['#markup'] .= '</div>';
     }
     if ($settings['delete_activate']) {
-      $build['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete-' . $special_id . '" class="ajax-entity-form-edit ' . $class . '">';
+      $build['ajax_delete_link']['#markup'] = '<div id="ajax-entity-form-delete-' . $special_id . '" class="ajax-entity-form-delete ' . $class . '">';
       $build['ajax_delete_link']['#markup'] .= l(t('delete'), 'ajax-form-entity-delete/delete/nojs/' . $type . '/' . $entity_id . '/' . $special_id, array('attributes' => array('class' => array('use-ajax'))));
       $build['ajax_delete_link']['#markup'] .= '</div>';
     }
