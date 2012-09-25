@@ -23,8 +23,11 @@ function ajax_form_entity_form() {
       '#type' => 'value',
       '#value' => $entity['entity keys']['id'],
     );
+    // Get all display types for the entity.
     $view_modes = array();
-    $view_modes = array_keys($entity['view modes']);
+    foreach($entity['view modes'] AS $key => $value) {
+      $view_modes[$key] = t($value['label']);
+    }
     foreach ($entity['bundles'] as $bundle_name => $bundle) {
       $settings = variable_get('ajax_form_entity_' . $entity_name . '_' . $bundle_name, NULL);
 
@@ -64,14 +67,17 @@ function ajax_form_entity_form() {
         '#description' => t('Check this box if you wish to be able to create again after submission'),
         '#default_value' => isset($settings) ? $settings['reload'] : 1,
       );
+      $id = str_replace('_', '-', $entity_name . '-' . $bundle_name);
       $form[$entity_name][$bundle_name]['creation'][$entity_name . '_' . $bundle_name . '_view_mode_region'] = array(
         '#type' => 'select',
         '#title' => t('On creation'),
         '#options' => array(
           'top' => t('Show the result at the top'),
           'bottom' => t('Show the result at the bottom'),
+          'id'  => t('Append to <div id="!div"></div>', array('!div' => $id)),
           0 => t('Do not show the result'),
         ),
+        '#description' => t('Note that for <em>append to</em> option, it is up to you to put the div wherever you want in the page.<br />Note also that classes @class will be masked.', array('@class' => '.remove-' . $id)),
         '#default_value' => isset($settings) ? $settings['view_mode_region'] : 'top',
       );
       $form[$entity_name][$bundle_name]['creation'][$entity_name . '_' . $bundle_name . '_view_mode'] = array(
