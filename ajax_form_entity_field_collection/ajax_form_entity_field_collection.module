@@ -24,6 +24,7 @@ function ajax_form_entity_field_collection_menu() {
  * 
  * @see ajax_form_entity_field_collection_field_formatter_view()
  */
+
 function ajax_form_entity_field_collection_field_formatter_info() {
   return array(
     // This formatter just displays the hex value in the color indicated.
@@ -31,7 +32,8 @@ function ajax_form_entity_field_collection_field_formatter_info() {
       'label' => t('Field collection edit in place'),
       'field types' => array(
         'field_collection'
-      )
+      ),
+      'settings' => array('close_form_display' => 0),
     )
   );
 }
@@ -71,6 +73,7 @@ function ajax_form_entity_field_collection_field_formatter_view($entity_type, $e
   switch ($display ['type']) {
     case 'ajax_field_collection':
       $view_mode = !empty($display ['settings'] ['view_mode']) ? $display ['settings'] ['view_mode'] : 'full';
+      $field_collection = array();
       foreach ($items as $delta => $item) {
         if ($field_collection = field_collection_field_get_entity($item)) {
           $element [$delta] ['entity'] = $field_collection->view($view_mode);
@@ -80,11 +83,8 @@ function ajax_form_entity_field_collection_field_formatter_view($entity_type, $e
       break;
   }
   // Add form element at the end.
-  // TODO : check wether we should add or not (permissions, number of
-  // fields...).
   if (entity_access('create', $entity_type, $entity)) {
     if ((count($items) < $field ['cardinality']) || ($field ['cardinality'] == - 1)) {
-      $settings = variable_get('ajax_form_entity_field_collection_item_' . $field->field_name, NULL);
 
       // Set global variable.
       // @see ajax_form_entity_form_alter.
@@ -117,7 +117,7 @@ function ajax_form_entity_field_collection_field_formatter_view($entity_type, $e
         }
         
         // render add form
-        $element [] ['#suffix'] .= drupal_render($new_form_build);
+        $element ['#suffix'] .= drupal_render($new_form_build);
       }
       // $element[]['#suffix'] .= drupal_render($new_form_build);
       drupal_set_title($title);
