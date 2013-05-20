@@ -221,7 +221,7 @@ function ajax_form_entity_callback($form, $form_state) {
       $id = 'preview-wrapper-bottom-' . $form['#build_id'];
       $commands[] = ajax_command_prepend('#' . $id, $entity_show);
     }
-    
+
   }
 
   // Return confirmation messages if any or empty session.
@@ -249,7 +249,7 @@ function ajax_form_entity_callback($form, $form_state) {
     $commands[] = ajax_command_remove('#form-reload-' . $form['#build_id']);
   }
   $id = str_replace('_', '-', $entity_type . '-' . $bundle);
-  $commands[] = ajax_command_css('.remove-' . $id, array('display' => 'none')); 
+  $commands[] = ajax_command_css('.remove-' . $id, array('display' => 'none'));
   return array('#type' => 'ajax', '#commands' => $commands);
 }
 
@@ -406,6 +406,9 @@ function ajax_form_entity_field_extra_fields() {
  * Implements hook_entity_view_alter().
  */
 function ajax_form_entity_entity_view_alter(&$build, $type) {
+  if(!isset($build['#bundle'])){
+    return;
+  }
   $bundle = $build['#bundle'];
   // If activated, process with the entity.
   $settings = variable_get('ajax_form_entity_' . $type . '_' . $bundle, array());
@@ -484,7 +487,7 @@ function theme_ajax_form_entity_deleted($vars) {
   $output = '<div id="deleted">';
   $output .= t($vars['content']);
   $output .= '</div>';
-  
+
   return $output;
 }
 
